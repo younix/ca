@@ -4,7 +4,7 @@ KEYLEN=1024
 
 .PHONY: all clean
 
-all: server.crt client.p12 ca.crt ca.crl
+all: server.crt client.p12 client_revoke.p12 ca.crt ca.crl
 clean:
 	rm -f *.crt *.key *.crl *.csr *.txt *.old *.p12 *.attr *.srl
 
@@ -21,6 +21,21 @@ client.crt: client.csr ca.crt
 # create pkcs12 version of the client key for import browser
 client.p12: client.crt client.key
 	openssl pkcs12 -export -clcerts -in client.crt -inkey client.key \
+	    -passout "pass:" -out $@
+
+# create client key (for revoking) #############################################
+client_revoke.key:
+	openssl genrsa -out $@ ${KEYLEN}
+# create server certificate request (for revoking)
+client_revoke.csr: client_revoke.key client_revoke.cf
+	openssl req -new -key client_revoke.key -config client_revoke.cf -out $@
+# create ca-signed client certificate (for revoking)
+client_revoke.crt: client_revoke.csr ca.crt
+	openssl x509 -req -in client_revoke.csr -out $@ \
+	    -CAcreateserial -CAkey ca.key -CA ca.crt
+# create pkcs12 version of the revoked client key for import browser
+client_revoke.p12: client_revoke.crt client_revoke.key
+	openssl pkcs12 -export -clcerts -in client_revoke.crt -inkey client_revoke.key \
 	    -passout "pass:" -out $@
 
 # create server key ############################################################
@@ -52,8 +67,13 @@ ca.crt: ca.key ca.cf
 	openssl req -new -x509 -key ca.key -config ca.cf -out $@
 
 # create certificate revocation list ###########################################
-ca.crl: ca.cf ca.key server_revoke.crt ca.txt
-	openssl ca -config ca.cf -gencrl -revoke server_revoke.crt -out $@
+ca.crl: ca.cf ca.key ca.txt server_revoke.crt client_revoke.crt
+	#openssl ca -config ca.cf -gencrl -revoke server_revoke.crt -out $@
+	#openssl ca -config ca.cf -gencrl -revoke client_revoke.crt -out $@
+	openssl ca -config ca.cf -gencrl -out $@
+	openssl ca -config ca.cf -revoke server_revoke.crt
+	openssl ca -config ca.cf -revoke client_revoke.crt
+	openssl ca -config ca.cf -gencrl -out $@
 
 ca.txt:
 	touch $@

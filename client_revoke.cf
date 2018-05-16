@@ -1,0 +1,12 @@
+[ req ]
+prompt			= no
+distinguished_name	= req_distinguished_name
+
+[ req_distinguished_name ]
+C		= US
+ST		= Bad State
+L		= Bad Locality
+O		= Bad Organization Name
+OU		= Bad Organizational Unit Name
+CN		= baduser
+emailAddress	= baduser@localhost
